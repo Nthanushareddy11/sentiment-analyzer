@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sentiment Analyzer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0D0F14;
+    --surface:   #161920;
+    --border:    #23272F;
+    --accent:    #7C6FFF;
+    --accent2:   #FF6F91;
+    --green:     #4ADE80;
+    --yellow:    #FBBF24;
+    --red:       #F87171;
+    --text:      #E8EAF0;
+    --muted:     #6B7280;
+    --radius:    14px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 28px 40px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .logo-icon {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: grid; place-items: center;
+    font-size: 18px;
+  }
+  header h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  header span {
+    font-size: 12px;
+    background: rgba(124,111,255,.15);
+    color: var(--accent);
+    border: 1px solid rgba(124,111,255,.3);
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-left: 8px;
+    font-weight: 500;
+  }
+
+  /* ── Layout ── */
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 48px 24px;
+  }
+
+  .hero {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .hero h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #fff 30%, var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 14px;
+  }
+  .hero p {
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  /* ── Input card ── */
+  .input-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .input-card label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 10px;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+  }
+  textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    padding: 14px 16px;
+    resize: vertical;
+    min-height: 120px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  .examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .example-btn {
+    font-size: 12px;
+    padding: 5px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .2s;
+    font-family: 'Inter', sans-serif;
+  }
+  .example-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(124,111,255,.07);
+  }
+
+  .analyze-btn {
+    width: 100%;
+    margin-top: 16px;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--accent), #9B8FFF);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    letter-spacing: .3px;
+  }
+  .analyze-btn:hover { opacity: .9; }
+  .analyze-btn:active { transform: scale(.99); }
+  .analyze-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ── Results ── */
+  #results { display: none; }
+
+  .results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .result-card.full { grid-column: 1 / -1; }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* Sentiment */
+  .sentiment-display {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .sentiment-icon {
+    font-size: 36px;
+    line-height: 1;
+  }
+  .sentiment-label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    text-transform: capitalize;
+  }
+  .sentiment-label.positive { color: var(--green); }
+  .sentiment-label.negative { color: var(--red); }
+  .sentiment-label.neutral  { color: var(--yellow); }
+
+  .confidence-bar {
+    margin-top: 12px;
+  }
+  .confidence-bar-track {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .confidence-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+  .conf-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Intent badge */
+  .intent-badge {
+    display: inline-block;
+    padding: 8px 18px;
+    border-radius: 24px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    text-transform: capitalize;
+    background: rgba(124,111,255,.15);
+    color: var(--accent);
+    border: 1px solid rgba(124,111,255,.3);
+    margin-bottom: 10px;
+  }
+
+  /* Scores */
+  .scores-list { display: flex; flex-direction: column; gap: 8px; }
+  .score-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+  }
+  .score-name {
+    width: 90px;
+    text-transform: capitalize;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .score-track {
+    flex: 1;
+    height: 5px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .score-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width .6s ease;
+  }
+  .score-fill.positive { background: var(--green); }
+  .score-fill.negative { background: var(--red); }
+  .score-fill.neutral  { background: var(--yellow); }
+  .score-val {
+    width: 38px;
+    text-align: right;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  /* NLG response */
+  .nlg-box {
+    background: rgba(124,111,255,.07);
+    border: 1px solid rgba(124,111,255,.2);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 16px 18px;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text);
+    font-style: italic;
+  }
+
+  /* Entities */
+  .entity-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .entity-tag {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+  }
+  .entity-type {
+    color: var(--accent2);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: .5px;
+  }
+  .entity-value { color: var(--text); }
+  .no-entities { color: var(--muted); font-size: 13px; }
+
+  /* Latency badge */
+  .latency {
+    text-align: center;
+    padding: 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .latency span {
+    color: var(--green);
+    font-weight: 600;
+  }
+
+  /* Loading */
+  .loading {
+    display: none;
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    margin: 0 auto 14px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Error */
+  .error-box {
+    display: none;
+    background: rgba(248,113,113,.1);
+    border: 1px solid rgba(248,113,113,.3);
+    border-radius: 10px;
+    padding: 14px 18px;
+    color: var(--red);
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  /* API config */
+  .api-config {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .api-config label {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .api-config input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+  }
+  .api-config input:focus { border-color: var(--accent); }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+  .status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  @media (max-width: 600px) {
+    .results-grid { grid-template-columns: 1fr; }
+    header { padding: 20px; }
+    .container { padding: 28px 16px; }
+    .hero h2 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">🧠</div>
+  <div>
+    <h1>Sentiment Analyzer <span>NLP</span></h1>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="hero">
+    <h2>Understand any text<br>in milliseconds</h2>
+    <p>Powered by RoBERTa + BART · Sentiment · Intent · NLG Response</p>
+  </div>
+
+  <!-- API Config -->
+  <div class="api-config">
+    <div class="status-dot" id="statusDot"></div>
+    <label>API URL</label>
+    <input type="text" id="apiUrl" value="http://127.0.0.1:8001" placeholder="http://127.0.0.1:8001"/>
+  </div>
+
+  <!-- Input -->
+  <div class="input-card">
+    <label>Your Text</label>
+    <textarea id="inputText" placeholder="Type or paste any text here — a review, message, complaint, question..."></textarea>
+
+    <div class="examples">
+      <span style="font-size:12px;color:var(--muted);align-self:center;">Try:</span>
+      <button class="example-btn" onclick="setExample('I love this product! It exceeded all my expectations.')">😍 Positive review</button>
+      <button class="example-btn" onclick="setExample('My order #12345 arrived late and was damaged. I want a refund!')">😡 Complaint</button>
+      <button class="example-btn" onclick="setExample('What are your business hours on weekends?')">❓ Question</button>
+      <button class="example-btn" onclick="setExample('I would like to cancel my subscription please.')">🚪 Cancellation</button>
+    </div>
+
+    <button class="analyze-btn" id="analyzeBtn" onclick="analyze()">Analyze Text →</button>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Analyzing with RoBERTa + BART...</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="results-grid">
+
+      <!-- Sentiment -->
+      <div class="result-card">
+        <div class="card-label">Sentiment · NLU</div>
+        <div class="sentiment-display">
+          <div class="sentiment-icon" id="sentimentIcon">😐</div>
+          <div class="sentiment-label" id="sentimentLabel">neutral</div>
+        </div>
+        <div class="confidence-bar">
+          <div class="conf-row">
+            <span>Confidence</span>
+            <span id="confValue">0%</span>
+          </div>
+          <div class="confidence-bar-track">
+            <div class="confidence-bar-fill" id="confBar" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="scores-list" id="scoresList" style="margin-top:14px"></div>
+      </div>
+
+      <!-- Intent -->
+      <div class="result-card">
+        <div class="card-label">Intent · NLU</div>
+        <div class="intent-badge" id="intentLabel">—</div>
+        <div class="scores-list" id="intentScores" style="margin-top:12px"></div>
+      </div>
+
+      <!-- NLG Response -->
+      <div class="result-card full">
+        <div class="card-label">Generated Response · NLG</div>
+        <div class="nlg-box" id="nlgResponse">—</div>
+      </div>
+
+      <!-- Entities -->
+      <div class="result-card full">
+        <div class="card-label">Extracted Entities · NLU</div>
+        <div class="entity-tags" id="entityTags"></div>
+      </div>
+
+    </div>
+    <div class="latency" id="latency"></div>
+  </div>
+
+</div>
+
+<script>
+  const SENTIMENT_ICONS = { positive:'😊', negative:'😞', neutral:'😐' };
+
+  function setExample(text) {
+    document.getElementById('inputText').value = text;
+  }
+
+  function showError(msg) {
+    const box = document.getElementById('errorBox');
+    box.style.display = 'block';
+    box.textContent = '⚠️  ' + msg;
+  }
+
+  function hideError() {
+    document.getElementById('errorBox').style.display = 'none';
+  }
+
+  async function analyze() {
+    const text = document.getElementById('inputText').value.trim();
+    const apiUrl = document.getElementById('apiUrl').value.trim();
+
+    if (!text) { showError('Please enter some text to analyze.'); return; }
+    hideError();
+
+    // Show loading
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('analyzeBtn').disabled = true;
+
+    try {
+      const res = await fetch(`${apiUrl}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const data = await res.json();
+      renderResults(data);
+      document.getElementById('statusDot').className = 'status-dot online';
+
+    } catch (err) {
+      showError('Could not connect to API. Make sure it is running on ' + apiUrl);
+      document.getElementById('statusDot').className = 'status-dot';
+    } finally {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('analyzeBtn').disabled = false;
+    }
+  }
+
+  function renderResults(data) {
+    const s = data.sentiment;
+    const i = data.intent;
+
+    // Sentiment
+    document.getElementById('sentimentIcon').textContent = SENTIMENT_ICONS[s.label] || '😐';
+    const lbl = document.getElementById('sentimentLabel');
+    lbl.textContent = s.label;
+    lbl.className = 'sentiment-label ' + s.label;
+    const pct = Math.round(s.confidence * 100);
+    document.getElementById('confValue').textContent = pct + '%';
+    document.getElementById('confBar').style.width = pct + '%';
+
+    // Score bars
+    const sl = document.getElementById('scoresList');
+    sl.innerHTML = '';
+    const scoreOrder = ['positive','neutral','negative'];
+    scoreOrder.forEach(key => {
+      const val = s.scores[key] ?? 0;
+      sl.innerHTML += `
+        <div class="score-row">
+          <span class="score-name">${key}</span>
+          <div class="score-track"><div class="score-fill ${key}" style="width:${Math.round(val*100)}%"></div></div>
+          <span class="score-val">${Math.round(val*100)}%</span>
+        </div>`;
+    });
+
+    // Intent
+    document.getElementById('intentLabel').textContent = i.label;
+    const is = document.getElementById('intentScores');
+    is.innerHTML = '';
+    const top4 = Object.entries(i.all_scores).sort((a,b)=>b[1]-a[1]).slice(0,4);
+    top4.forEach(([label, score]) => {
+      is.innerHTML += `
+        <div class="score-row">
+          <span class="score-name">${label}</span>
+          <div class="score-track"><div class="score-fill neutral" style="width:${Math.round(score*100)}%"></div></div>
+          <span class="score-val">${Math.round(score*100)}%</span>
+        </div>`;
+    });
+
+    // NLG
+    document.getElementById('nlgResponse').textContent = '"' + data.nlg_response + '"';
+
+    // Entities
+    const et = document.getElementById('entityTags');
+    et.innerHTML = '';
+    if (data.entities && data.entities.length > 0) {
+      data.entities.forEach(e => {
+        et.innerHTML += `<div class="entity-tag"><span class="entity-type">${e.type}</span><span class="entity-value">${e.value}</span></div>`;
+      });
+    } else {
+      et.innerHTML = '<span class="no-entities">No entities detected</span>';
+    }
+
+    // Latency
+    document.getElementById('latency').innerHTML = `Analyzed in <span>${data.latency_ms}ms</span>`;
+
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // Enter key
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.metaKey) analyze();
+  });
+</script>
+</body>
+</html>
