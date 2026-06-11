@@ -1,9 +1,15 @@
 """
 NLP Pipeline — Sentiment + Intent + NLG
+----------------------------------------
+- Sentiment  : HuggingFace RoBERTa (NLU)
+- Intent     : Zero-shot classification via BART (NLU)
+- NLG        : Template-based response generator (NLG)
+- Entities   : Simple keyword extraction
 """
 
 from transformers import pipeline
 import re
+
 
 INTENT_LABELS = [
     "question", "complaint", "request",
@@ -23,21 +29,29 @@ NLG_TEMPLATES = {
     ("neutral",  "other")        : "Thank you for contacting us. We'll get back to you shortly.",
 }
 
+
 def load_models():
+    """Load sentiment and zero-shot classification models."""
     print("Loading sentiment model (RoBERTa)...")
     sentiment_model = pipeline(
         "sentiment-analysis",
         model="cardiffnlp/twitter-roberta-base-sentiment-latest",
         return_all_scores=True,
-        framework="tf",
+        backend="onnx",
     )
+
     print("Loading intent classifier (BART zero-shot)...")
     intent_model = pipeline(
         "zero-shot-classification",
         model="facebook/bart-large-mnli",
-        framework="tf",
+        backend="onnx",
     )
-    return {"sentiment": sentiment_model, "intent": intent_model}
+
+    return {
+        "sentiment" : sentiment_model,
+        "intent"    : intent_model,
+    }
+
 
 def extract_entities(text: str) -> list:
     entities = []
@@ -55,6 +69,7 @@ def extract_entities(text: str) -> list:
         entities.append({"type": "reference_id", "value": o})
     return entities
 
+
 def get_sentiment(model, text: str) -> dict:
     results = model(text[:512])[0]
     label_map = {
@@ -66,16 +81,24 @@ def get_sentiment(model, text: str) -> dict:
     return {
         "label"     : label,
         "confidence": round(best["score"], 3),
-        "scores"    : {label_map.get(r["label"].lower(), r["label"].lower()): round(r["score"], 3) for r in results}
+        "scores"    : {
+            label_map.get(r["label"].lower(), r["label"].lower()): round(r["score"], 3)
+            for r in results
+        }
     }
+
 
 def get_intent(model, text: str) -> dict:
     result = model(text[:512], candidate_labels=INTENT_LABELS)
     return {
         "label"     : result["labels"][0],
         "confidence": round(result["scores"][0], 3),
-        "all_scores": {label: round(score, 3) for label, score in zip(result["labels"], result["scores"])}
+        "all_scores": {
+            label: round(score, 3)
+            for label, score in zip(result["labels"], result["scores"])
+        }
     }
+
 
 def generate_response(sentiment_label: str, intent_label: str) -> str:
     key = (sentiment_label, intent_label)
@@ -87,6 +110,7 @@ def generate_response(sentiment_label: str, intent_label: str) -> str:
         "neutral" : "Thank you for contacting us. We'll respond shortly.",
     }
     return fallbacks.get(sentiment_label, "Thank you for reaching out!")
+
 
 def analyze_text(models: dict, text: str) -> dict:
     sentiment = get_sentiment(models["sentiment"], text)

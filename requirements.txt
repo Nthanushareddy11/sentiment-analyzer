@@ -3,5 +3,5 @@ fastapi==0.111.0
 uvicorn==0.30.0
 pydantic==2.7.0
 sentencepiece==0.2.0
-tf-keras
-tensorflow-cpu
+onnxruntime==1.18.0
+optimum==1.20.0
