@@ -1,20 +1,39 @@
 """
 NLP Pipeline — Sentiment + Intent + NLG
-----------------------------------------
-- Sentiment  : HuggingFace RoBERTa (NLU)
-- Intent     : Zero-shot classification via BART (NLU)
-- NLG        : Template-based response generator (NLG)
-- Entities   : Simple keyword extraction
+Lightweight rule-based approach — no heavy ML dependencies needed.
 """
 
-from transformers import pipeline
 import re
+from collections import Counter
 
+# ── Word lists ────────────────────────────────────────────────────────
+POSITIVE_WORDS = {
+    "good","great","excellent","amazing","wonderful","fantastic","love","happy",
+    "pleased","satisfied","awesome","best","perfect","thank","thanks","appreciate",
+    "helpful","easy","fast","quick","friendly","recommend","impressed","beautiful",
+    "brilliant","superb","outstanding","exceptional","delighted","enjoy","enjoyed"
+}
 
-INTENT_LABELS = [
-    "question", "complaint", "request",
-    "feedback", "greeting", "cancellation", "purchase", "other"
-]
+NEGATIVE_WORDS = {
+    "bad","terrible","awful","horrible","hate","disappointed","disappointing","poor",
+    "worst","useless","broken","failed","wrong","problem","issue","error","slow",
+    "rude","unhappy","angry","frustrated","annoyed","upset","disgusted","refund",
+    "cancel","damaged","late","missing","never","complaint","complain","unacceptable"
+}
+
+NEUTRAL_WORDS = {
+    "okay","ok","fine","average","normal","standard","usual","typical","moderate"
+}
+
+INTENT_PATTERNS = {
+    "question"    : [r"\?", r"\bwhat\b", r"\bhow\b", r"\bwhen\b", r"\bwhere\b", r"\bwhy\b", r"\bwho\b", r"\bcan you\b", r"\bdo you\b"],
+    "complaint"   : [r"\bcomplaint\b", r"\bcomplain\b", r"\bunhappy\b", r"\bdisappointed\b", r"\bterrible\b", r"\bawful\b", r"\bbroken\b", r"\bdamaged\b", r"\bnot working\b"],
+    "cancellation": [r"\bcancel\b", r"\bcancellation\b", r"\bunsubscribe\b", r"\bstop\b", r"\bend my\b", r"\bterminate\b"],
+    "request"     : [r"\bplease\b", r"\bcould you\b", r"\bwould you\b", r"\bi need\b", r"\bi want\b", r"\bi'd like\b", r"\brequest\b"],
+    "purchase"    : [r"\bbuy\b", r"\border\b", r"\bpurchase\b", r"\bpayment\b", r"\bprice\b", r"\bcost\b", r"\bcheckout\b"],
+    "feedback"    : [r"\bfeedback\b", r"\breview\b", r"\bsuggestion\b", r"\bopinion\b", r"\bthought\b", r"\brating\b"],
+    "greeting"    : [r"\bhello\b", r"\bhi\b", r"\bhey\b", r"\bgood morning\b", r"\bgood afternoon\b", r"\bgreetings\b"],
+}
 
 NLG_TEMPLATES = {
     ("positive", "feedback")     : "Thank you for your positive feedback! We're thrilled you had a great experience.",
@@ -31,26 +50,9 @@ NLG_TEMPLATES = {
 
 
 def load_models():
-    """Load sentiment and zero-shot classification models."""
-    print("Loading sentiment model (RoBERTa)...")
-    sentiment_model = pipeline(
-        "sentiment-analysis",
-        model="cardiffnlp/twitter-roberta-base-sentiment-latest",
-        return_all_scores=True,
-        backend="onnx",
-    )
-
-    print("Loading intent classifier (BART zero-shot)...")
-    intent_model = pipeline(
-        "zero-shot-classification",
-        model="facebook/bart-large-mnli",
-        backend="onnx",
-    )
-
-    return {
-        "sentiment" : sentiment_model,
-        "intent"    : intent_model,
-    }
+    """No heavy models needed — rule-based approach."""
+    print("✅ Lightweight NLP pipeline ready!")
+    return {"ready": True}
 
 
 def extract_entities(text: str) -> list:
@@ -70,33 +72,55 @@ def extract_entities(text: str) -> list:
     return entities
 
 
-def get_sentiment(model, text: str) -> dict:
-    results = model(text[:512])[0]
-    label_map = {
-        "positive": "positive", "negative": "negative", "neutral": "neutral",
-        "LABEL_0": "negative", "LABEL_1": "neutral", "LABEL_2": "positive",
-    }
-    best = max(results, key=lambda x: x["score"])
-    label = label_map.get(best["label"].lower(), best["label"].lower())
+def get_sentiment(models, text: str) -> dict:
+    words = re.findall(r'\b\w+\b', text.lower())
+    pos = sum(1 for w in words if w in POSITIVE_WORDS)
+    neg = sum(1 for w in words if w in NEGATIVE_WORDS)
+    neu = sum(1 for w in words if w in NEUTRAL_WORDS)
+    total = pos + neg + neu + 1
+
+    if pos > neg:
+        label = "positive"
+        confidence = round(min(0.95, 0.55 + (pos - neg) / total), 3)
+    elif neg > pos:
+        label = "negative"
+        confidence = round(min(0.95, 0.55 + (neg - pos) / total), 3)
+    else:
+        label = "neutral"
+        confidence = round(0.55 + neu / total * 0.3, 3)
+
+    pos_score = round(pos / total, 3)
+    neg_score = round(neg / total, 3)
+    neu_score = round(1 - pos_score - neg_score, 3)
+
     return {
         "label"     : label,
-        "confidence": round(best["score"], 3),
-        "scores"    : {
-            label_map.get(r["label"].lower(), r["label"].lower()): round(r["score"], 3)
-            for r in results
-        }
+        "confidence": confidence,
+        "scores"    : {"positive": pos_score, "neutral": max(0, neu_score), "negative": neg_score}
     }
 
 
-def get_intent(model, text: str) -> dict:
-    result = model(text[:512], candidate_labels=INTENT_LABELS)
+def get_intent(models, text: str) -> dict:
+    text_lower = text.lower()
+    scores = {}
+    for intent, patterns in INTENT_PATTERNS.items():
+        score = sum(1 for p in patterns if re.search(p, text_lower))
+        scores[intent] = round(score / len(patterns), 3)
+
+    if not any(scores.values()):
+        scores["other"] = 1.0
+        best_intent = "other"
+    else:
+        best_intent = max(scores, key=scores.get)
+        if scores[best_intent] == 0:
+            best_intent = "other"
+            scores["other"] = 0.5
+
+    sorted_scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
     return {
-        "label"     : result["labels"][0],
-        "confidence": round(result["scores"][0], 3),
-        "all_scores": {
-            label: round(score, 3)
-            for label, score in zip(result["labels"], result["scores"])
-        }
+        "label"     : best_intent,
+        "confidence": round(scores.get(best_intent, 0.5), 3),
+        "all_scores": sorted_scores
     }
 
 
@@ -113,8 +137,8 @@ def generate_response(sentiment_label: str, intent_label: str) -> str:
 
 
 def analyze_text(models: dict, text: str) -> dict:
-    sentiment = get_sentiment(models["sentiment"], text)
-    intent    = get_intent(models["intent"], text)
+    sentiment = get_sentiment(models, text)
+    intent    = get_intent(models, text)
     entities  = extract_entities(text)
     response  = generate_response(sentiment["label"], intent["label"])
     return {
