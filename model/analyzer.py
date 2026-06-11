@@ -42,10 +42,11 @@ def load_models():
     """Load sentiment and zero-shot classification models."""
     print("Loading sentiment model (RoBERTa)...")
     sentiment_model = pipeline(
-        "sentiment-analysis",
-        model="cardiffnlp/twitter-roberta-base-sentiment-latest",
-        return_all_scores=True,
-    )
+    "sentiment-analysis",
+    model="cardiffnlp/twitter-roberta-base-sentiment-latest",
+    return_all_scores=True,
+    framework="tf",
+)
 
     print("Loading intent classifier (BART zero-shot)...")
     intent_model = pipeline(
